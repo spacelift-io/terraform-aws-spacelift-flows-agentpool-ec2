@@ -10,12 +10,6 @@ variable "backend_endpoint" {
   type        = string
 }
 
-variable "environment" {
-  type        = string
-  description = "Environment name"
-  default     = "Demo"
-}
-
 variable "gateway_endpoint" {
   description = "Gateway endpoint URL for agents to connect"
   type        = string
