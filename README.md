@@ -4,7 +4,7 @@ Terraform module for running a Spacelift Flows agent pool on AWS EC2 instances.
 
 ## What this does
 
-This module sets up an auto-scaling group of EC2 instances that run Flows agents. The agents connect to your Flows backend and execute workflow tasks. It handles the networking, IAM permissions, secrets management, and instance lifecycle.
+This module sets up an auto-scaling group of EC2 instances that run Flows agents. The agents connect to the Flows backend and execute workflow tasks. It handles the networking, IAM permissions, secrets management, and instance lifecycle.
 
 The module can either create a new VPC or use an existing one. Instances run in private subnets with NAT gateway access for pulling container images and connecting to Flows endpoints.
 
@@ -16,8 +16,8 @@ module "flows_agent_pool" {
 
   agent_pool_id    = "your-agent-pool-id"
   agent_pool_token = "your-agent-pool-token"
-  backend_endpoint = "https://flows.example.com"
-  gateway_endpoint = "https://gateway.flows.example.com"
+  backend_endpoint = "https://useflows.eu"
+  gateway_endpoint = "https://gateway.useflows.eu"
 
   agent_instance_type = "t3.medium"
   min_size            = 1
@@ -33,29 +33,11 @@ module "flows_agent_pool" {
 
   agent_pool_id    = "your-agent-pool-id"
   agent_pool_token = "your-agent-pool-token"
-  backend_endpoint = "https://flows.example.com"
-  gateway_endpoint = "https://gateway.flows.example.com"
+  backend_endpoint = "https://useflows.eu"
+  gateway_endpoint = "https://gateway.useflows.eu"
 
   reuse_vpc_id         = "vpc-12345678"
   reuse_vpc_subnet_ids = ["subnet-abc", "subnet-def", "subnet-ghi"]
-}
-```
-
-### Private ECR repository
-
-If you're mirroring the Flows agent image to a private ECR repository:
-
-```hcl
-module "flows_agent_pool" {
-  source = "spacelift-io/spacelift-flows-agentpool-ec2/aws"
-
-  agent_pool_id    = "your-agent-pool-id"
-  agent_pool_token = "your-agent-pool-token"
-  backend_endpoint = "https://flows.example.com"
-  gateway_endpoint = "https://gateway.flows.example.com"
-
-  ecr_repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/flows-agent"
-  ecr_repository_arn = "arn:aws:ecr:us-east-1:123456789012:repository/flows-agent"
 }
 ```
 
