@@ -1,0 +1,157 @@
+#!/bin/bash
+
+flows_agent () {(
+  set -e
+
+  # Create log directory
+  mkdir -p /var/log/flows
+  mkdir -p /var/log/spacelift
+
+  echo "Starting Flows agent setup" >> /var/log/spacelift/info.log
+
+  # Configure CloudWatch agent
+  echo "Configuring CloudWatch agent" >> /var/log/spacelift/info.log
+  cat > /tmp/amazon-cloudwatch-agent.json <<'EOF'
+{
+  "agent": {
+    "region": "${region}",
+    "logfile": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log"
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/spacelift/info.log",
+            "log_group_name": "/aws/ec2/flows-agent",
+            "log_stream_name": "{instance_id}/info",
+            "retention_in_days": 7
+          },
+          {
+            "file_path": "/var/log/spacelift/error.log",
+            "log_group_name": "/aws/ec2/flows-agent",
+            "log_stream_name": "{instance_id}/error",
+            "retention_in_days": 7
+          },
+          {
+            "file_path": "/var/log/flows/**",
+            "log_group_name": "/aws/ec2/flows-agent",
+            "log_stream_name": "{instance_id}/flows/{ip_address}",
+            "retention_in_days": 7
+          }
+        ]
+      }
+    }
+  },
+  "metrics": {
+    "namespace": "Flows/Agent",
+    "metrics_collected": {
+      "mem": {
+        "measurement": [
+          "mem_used_percent"
+        ]
+      },
+      "disk": {
+        "measurement": [
+          "used_percent"
+        ],
+        "resources": [
+          "*"
+        ]
+      }
+    }
+  }
+}
+EOF
+
+  # Start CloudWatch agent
+  echo "Starting CloudWatch agent" >> /var/log/spacelift/info.log
+  sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+    -a fetch-config -m ec2 -s -c file:/tmp/amazon-cloudwatch-agent.json 2>>/var/log/spacelift/error.log
+
+  # Start SSM agent
+  echo "Starting SSM agent" >> /var/log/spacelift/info.log
+  sudo systemctl enable amazon-ssm-agent 2>>/var/log/spacelift/error.log
+  sudo systemctl start amazon-ssm-agent 2>>/var/log/spacelift/error.log
+
+%{ if private_ecr_repository == "" ~}
+  # Logging in to Public ECR (default)
+  echo "Logging in to Public ECR" >> /var/log/spacelift/info.log
+  aws ecr-public get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin public.ecr.aws 2>>/var/log/spacelift/error.log
+%{ endif ~}
+
+  # Optionally login to Private ECR if configured
+%{ if private_ecr_repository != "" ~}
+  echo "Logging in to Private ECR" >> /var/log/spacelift/info.log
+  aws ecr get-login-password --region "${region}" | sudo docker login --username AWS --password-stdin "${private_ecr_repository}" 2>>/var/log/spacelift/error.log
+%{ endif ~}
+
+  # Setup gvisor runtime
+  echo "Setting up gvisor runtime" >> /var/log/spacelift/info.log
+  sudo runsc install -- --network=sandbox 2>>/var/log/spacelift/error.log
+  sudo systemctl restart docker 2>>/var/log/spacelift/error.log
+
+  # Configure iptables for container isolation
+  echo "Configuring iptables for container isolation" >> /var/log/spacelift/info.log
+  # Default docker network is 172.17.0.0/16
+  # DOCKER-USER is a chain dedicated to custom iptables in docker networking
+  sudo iptables -I DOCKER-USER -s 172.17.0.0/16 -d 172.17.0.0/16 -j DROP 2>>/var/log/spacelift/error.log
+
+  # Block incoming connections to host
+  echo "Configuring host firewall" >> /var/log/spacelift/info.log
+  sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>>/var/log/spacelift/error.log
+  sudo iptables -A INPUT -i lo -j ACCEPT 2>>/var/log/spacelift/error.log
+  sudo iptables -P INPUT DROP 2>>/var/log/spacelift/error.log
+
+  # Get agent credentials from Secrets Manager
+  echo "Fetching agent credentials from Secrets Manager" >> /var/log/spacelift/info.log
+  SECRET_JSON=$(aws secretsmanager get-secret-value --region="${region}" --secret-id ${credentials_secret_id} --query SecretString --output text 2>>/var/log/spacelift/error.log)
+  
+  # Extract credentials and set environment variables
+  export FLOWS_AGENT_POOL_ID=$(echo $SECRET_JSON | jq -r '.FLOWS_AGENT_POOL_ID')
+  export FLOWS_AGENT_POOL_TOKEN=$(echo $SECRET_JSON | jq -r '.FLOWS_AGENT_POOL_TOKEN')
+  export FLOWS_GATEWAY_ENDPOINT="${gateway_endpoint}"
+  export FLOWS_ENDPOINT="${backend_endpoint}"
+
+  # Fetch the agent image tag from SSM Parameter Store
+  echo "Fetching agent image tag from SSM Parameter Store" >> /var/log/spacelift/info.log
+  AGENT_IMAGE_TAG=$(aws ssm get-parameter --region="${region}" --name ${image_tag_ssm_param} --query Parameter.Value --output text 2>>/var/log/spacelift/error.log)
+  echo "Using agent image tag: $AGENT_IMAGE_TAG" >> /var/log/spacelift/info.log
+
+  AGENT_IMAGE="${ecr_repository}:agent-$AGENT_IMAGE_TAG"
+  echo "Agent image: $AGENT_IMAGE" >> /var/log/spacelift/info.log
+
+  echo "Downloading Flows agent docker image" >> /var/log/spacelift/info.log
+  sudo docker pull $AGENT_IMAGE 2>>/var/log/spacelift/error.log
+
+  echo "Extracting Flows agent binary from docker image" >> /var/log/spacelift/info.log
+  sudo docker create --name flows-agent-temp $AGENT_IMAGE 2>>/var/log/spacelift/error.log
+  sudo docker cp flows-agent-temp:/usr/bin/agent /usr/bin/flows-agent 2>>/var/log/spacelift/error.log
+  sudo docker rm -f flows-agent-temp 2>>/var/log/spacelift/error.log
+
+  echo "Making the Flows agent executable" >> /var/log/spacelift/info.log
+  chmod 755 /usr/bin/flows-agent 2>>/var/log/spacelift/error.log
+
+  #echo "Retrieving EC2 instance id and AMI id" >> /var/log/spacelift/info.log
+  #export SPACEFLOWS_METADATA_instance_id=$(ec2-metadata --instance-id | cut -d ' ' -f2)
+  #export SPACEFLOWS_METADATA_ami_id=$(ec2-metadata --ami-id | cut -d ' ' -f2)
+
+  #echo "Retrieving EC2 ASG ID" >> /var/log/spacelift/info.log
+  #export SPACEFLOWS_METADATA_asg_id=$(aws autoscaling --region=${region} describe-auto-scaling-instances --instance-ids $SPACEFLOWS_METADATA_instance_id | jq -r '.AutoScalingInstances[0].AutoScalingGroupName')
+
+  echo "Creating agent runtime tempdir" >> /var/log/spacelift/info.log
+  sudo mkdir -p /var/flows/runtimes 2>>/var/log/spacelift/error.log
+  export FLOWS_DOCKER_MOUNTS_TEMPDIR="/var/flows/runtimes"
+  export FLOWS_EXECUTOR="docker"
+  export FLOWS_DOCKER_EXTRA_PARAMS="--runtime=runsc --cap-drop=ALL --security-opt no-new-privileges"
+
+  echo "Starting the Flows agent binary" >> /var/log/spacelift/info.log
+  /usr/bin/flows-agent 1>>/var/log/spacelift/info.log 2>>/var/log/spacelift/error.log
+)}
+
+# Reset the errexit option so if for some reason the flows agent stops, the poweroff should be run
+set +e
+flows_agent
+echo "Powering off in 5 seconds" >> /var/log/spacelift/error.log
+sleep 5
+poweroff
