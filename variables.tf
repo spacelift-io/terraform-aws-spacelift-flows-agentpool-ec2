@@ -18,7 +18,7 @@ variable "gateway_endpoint" {
 variable "agent_instance_type" {
   description = "EC2 instance type for agents"
   type        = string
-  default     = "t3.medium"
+  default     = "c7i.xlarge"
 }
 
 variable "min_size" {
