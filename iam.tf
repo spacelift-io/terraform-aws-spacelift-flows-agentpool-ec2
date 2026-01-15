@@ -51,6 +51,13 @@ resource "aws_iam_role_policy" "agent_instance" {
         {
           Effect = "Allow"
           Action = [
+            "autoscaling:CompleteLifecycleAction"
+          ]
+          Resource = aws_autoscaling_group.agent_pool.arn
+        },
+        {
+          Effect = "Allow"
+          Action = [
             "cloudwatch:PutMetricData"
           ]
           Resource = "*"

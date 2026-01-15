@@ -174,3 +174,12 @@ resource "aws_autoscaling_group" "agent_pool" {
     propagate_at_launch = true
   }
 }
+
+# Lifecycle hook to allow graceful shutdown during instance termination
+resource "aws_autoscaling_lifecycle_hook" "agent_termination" {
+  name                   = "flows-agent-termination-hook"
+  autoscaling_group_name = aws_autoscaling_group.agent_pool.name
+  lifecycle_transition   = "autoscaling:EC2_INSTANCE_TERMINATING"
+  heartbeat_timeout      = 300 # 5 minutes for graceful shutdown
+  default_result         = "CONTINUE"
+}
