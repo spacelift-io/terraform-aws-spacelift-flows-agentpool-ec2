@@ -1,17 +1,37 @@
 #!/bin/bash
 
-flows_agent () {(
-  set -e
+set -e
 
-  # Create log directory
-  mkdir -p /var/log/flows
-  mkdir -p /var/log/spacelift
+# Create log directory
+mkdir -p /var/log/flows
+mkdir -p /var/log/spacelift
 
-  echo "Starting Flows agent setup" >> /var/log/spacelift/info.log
+echo "Starting Flows agent setup" >> /var/log/spacelift/info.log
 
-  # Configure CloudWatch agent
-  echo "Configuring CloudWatch agent" >> /var/log/spacelift/info.log
-  cat > /tmp/amazon-cloudwatch-agent.json <<'EOF'
+# Get instance metadata for lifecycle hook completion
+IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+echo "Instance ID: $INSTANCE_ID" >> /var/log/spacelift/info.log
+
+# Get ASG name for this instance
+ASG_NAME=$(aws autoscaling describe-auto-scaling-instances --region="${region}" --instance-ids "$INSTANCE_ID" --query 'AutoScalingInstances[0].AutoScalingGroupName' --output text 2>>/var/log/spacelift/error.log)
+echo "ASG Name: $ASG_NAME" >> /var/log/spacelift/info.log
+
+# Function to complete lifecycle hook
+complete_lifecycle_hook() {
+  echo "Completing lifecycle hook for instance $INSTANCE_ID" >> /var/log/spacelift/info.log
+  aws autoscaling complete-lifecycle-action \
+    --region="${region}" \
+    --lifecycle-hook-name "flows-agent-termination-hook" \
+    --auto-scaling-group-name "$ASG_NAME" \
+    --instance-id "$INSTANCE_ID" \
+    --lifecycle-action-result "CONTINUE" 2>>/var/log/spacelift/error.log || true
+  echo "Lifecycle hook completed" >> /var/log/spacelift/info.log
+}
+
+# Configure CloudWatch agent
+echo "Configuring CloudWatch agent" >> /var/log/spacelift/info.log
+cat > /tmp/amazon-cloudwatch-agent.json <<'EOF'
 {
   "agent": {
     "region": "${region}",
@@ -64,94 +84,127 @@ flows_agent () {(
 }
 EOF
 
-  # Start CloudWatch agent
-  echo "Starting CloudWatch agent" >> /var/log/spacelift/info.log
-  sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-    -a fetch-config -m ec2 -s -c file:/tmp/amazon-cloudwatch-agent.json 2>>/var/log/spacelift/error.log
+# Start CloudWatch agent
+echo "Starting CloudWatch agent" >> /var/log/spacelift/info.log
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+  -a fetch-config -m ec2 -s -c file:/tmp/amazon-cloudwatch-agent.json 2>>/var/log/spacelift/error.log
 
-  # Start SSM agent
-  echo "Starting SSM agent" >> /var/log/spacelift/info.log
-  sudo systemctl enable amazon-ssm-agent 2>>/var/log/spacelift/error.log
-  sudo systemctl start amazon-ssm-agent 2>>/var/log/spacelift/error.log
+# Start SSM agent
+echo "Starting SSM agent" >> /var/log/spacelift/info.log
+sudo systemctl enable amazon-ssm-agent 2>>/var/log/spacelift/error.log
+sudo systemctl start amazon-ssm-agent 2>>/var/log/spacelift/error.log
 
 %{ if private_ecr_repository == "" ~}
-  # Logging in to Public ECR (default)
-  echo "Logging in to Public ECR" >> /var/log/spacelift/info.log
-  aws ecr-public get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin public.ecr.aws 2>>/var/log/spacelift/error.log
+# Logging in to Public ECR (default)
+echo "Logging in to Public ECR" >> /var/log/spacelift/info.log
+aws ecr-public get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin public.ecr.aws 2>>/var/log/spacelift/error.log
 %{ endif ~}
 
-  # Optionally login to Private ECR if configured
+# Optionally login to Private ECR if configured
 %{ if private_ecr_repository != "" ~}
-  echo "Logging in to Private ECR" >> /var/log/spacelift/info.log
-  aws ecr get-login-password --region "${region}" | sudo docker login --username AWS --password-stdin "${private_ecr_repository}" 2>>/var/log/spacelift/error.log
+echo "Logging in to Private ECR" >> /var/log/spacelift/info.log
+aws ecr get-login-password --region "${region}" | sudo docker login --username AWS --password-stdin "${private_ecr_repository}" 2>>/var/log/spacelift/error.log
 %{ endif ~}
 
-  # Setup gvisor runtime
-  echo "Setting up gvisor runtime" >> /var/log/spacelift/info.log
-  sudo runsc install -- --network=sandbox 2>>/var/log/spacelift/error.log
-  sudo systemctl restart docker 2>>/var/log/spacelift/error.log
+# Setup gvisor runtime
+echo "Setting up gvisor runtime" >> /var/log/spacelift/info.log
+sudo runsc install -- --network=sandbox 2>>/var/log/spacelift/error.log
+sudo systemctl restart docker 2>>/var/log/spacelift/error.log
 
-  # Configure iptables for container isolation
-  echo "Configuring iptables for container isolation" >> /var/log/spacelift/info.log
-  # Default docker network is 172.17.0.0/16
-  # DOCKER-USER is a chain dedicated to custom iptables in docker networking
-  sudo iptables -I DOCKER-USER -s 172.17.0.0/16 -d 172.17.0.0/16 -j DROP 2>>/var/log/spacelift/error.log
+# Configure iptables for container isolation
+echo "Configuring iptables for container isolation" >> /var/log/spacelift/info.log
+# Default docker network is 172.17.0.0/16
+# DOCKER-USER is a chain dedicated to custom iptables in docker networking
+sudo iptables -I DOCKER-USER -s 172.17.0.0/16 -d 172.17.0.0/16 -j DROP 2>>/var/log/spacelift/error.log
 
-  # Block incoming connections to host
-  echo "Configuring host firewall" >> /var/log/spacelift/info.log
-  sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>>/var/log/spacelift/error.log
-  sudo iptables -A INPUT -i lo -j ACCEPT 2>>/var/log/spacelift/error.log
-  sudo iptables -P INPUT DROP 2>>/var/log/spacelift/error.log
+# Block incoming connections to host
+echo "Configuring host firewall" >> /var/log/spacelift/info.log
+sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>>/var/log/spacelift/error.log
+sudo iptables -A INPUT -i lo -j ACCEPT 2>>/var/log/spacelift/error.log
+sudo iptables -P INPUT DROP 2>>/var/log/spacelift/error.log
 
-  # Get agent credentials from Secrets Manager
-  echo "Fetching agent credentials from Secrets Manager" >> /var/log/spacelift/info.log
-  SECRET_JSON=$(aws secretsmanager get-secret-value --region="${region}" --secret-id ${credentials_secret_id} --query SecretString --output text 2>>/var/log/spacelift/error.log)
-  
-  # Extract credentials and set environment variables
-  export FLOWS_AGENT_POOL_ID=$(echo $SECRET_JSON | jq -r '.FLOWS_AGENT_POOL_ID')
-  export FLOWS_AGENT_POOL_TOKEN=$(echo $SECRET_JSON | jq -r '.FLOWS_AGENT_POOL_TOKEN')
-  export FLOWS_GATEWAY_ENDPOINT="${gateway_endpoint}"
-  export FLOWS_ENDPOINT="${backend_endpoint}"
+# Get agent credentials from Secrets Manager
+echo "Fetching agent credentials from Secrets Manager" >> /var/log/spacelift/info.log
+SECRET_JSON=$(aws secretsmanager get-secret-value --region="${region}" --secret-id ${credentials_secret_id} --query SecretString --output text 2>>/var/log/spacelift/error.log)
 
-  # Fetch the agent image tag from SSM Parameter Store
-  echo "Fetching agent image tag from SSM Parameter Store" >> /var/log/spacelift/info.log
-  AGENT_IMAGE_TAG=$(aws ssm get-parameter --region="${region}" --name ${image_tag_ssm_param} --query Parameter.Value --output text 2>>/var/log/spacelift/error.log)
-  echo "Using agent image tag: $AGENT_IMAGE_TAG" >> /var/log/spacelift/info.log
+# Extract credentials and set environment variables
+export FLOWS_AGENT_POOL_ID=$(echo $SECRET_JSON | jq -r '.FLOWS_AGENT_POOL_ID')
+export FLOWS_AGENT_POOL_TOKEN=$(echo $SECRET_JSON | jq -r '.FLOWS_AGENT_POOL_TOKEN')
+export FLOWS_GATEWAY_ENDPOINT="${gateway_endpoint}"
+export FLOWS_ENDPOINT="${backend_endpoint}"
 
-  AGENT_IMAGE="${ecr_repository}:agent-$AGENT_IMAGE_TAG"
-  echo "Agent image: $AGENT_IMAGE" >> /var/log/spacelift/info.log
+# Fetch the agent image tag from SSM Parameter Store
+echo "Fetching agent image tag from SSM Parameter Store" >> /var/log/spacelift/info.log
+AGENT_IMAGE_TAG=$(aws ssm get-parameter --region="${region}" --name ${image_tag_ssm_param} --query Parameter.Value --output text 2>>/var/log/spacelift/error.log)
+echo "Using agent image tag: $AGENT_IMAGE_TAG" >> /var/log/spacelift/info.log
 
-  echo "Downloading Flows agent docker image" >> /var/log/spacelift/info.log
-  sudo docker pull $AGENT_IMAGE 2>>/var/log/spacelift/error.log
+AGENT_IMAGE="${ecr_repository}:agent-$AGENT_IMAGE_TAG"
+echo "Agent image: $AGENT_IMAGE" >> /var/log/spacelift/info.log
 
-  echo "Extracting Flows agent binary from docker image" >> /var/log/spacelift/info.log
-  sudo docker create --name flows-agent-temp $AGENT_IMAGE 2>>/var/log/spacelift/error.log
-  sudo docker cp flows-agent-temp:/usr/bin/agent /usr/bin/flows-agent 2>>/var/log/spacelift/error.log
-  sudo docker rm -f flows-agent-temp 2>>/var/log/spacelift/error.log
+echo "Downloading Flows agent docker image" >> /var/log/spacelift/info.log
+sudo docker pull $AGENT_IMAGE 2>>/var/log/spacelift/error.log
 
-  echo "Making the Flows agent executable" >> /var/log/spacelift/info.log
-  chmod 755 /usr/bin/flows-agent 2>>/var/log/spacelift/error.log
+echo "Extracting Flows agent binary from docker image" >> /var/log/spacelift/info.log
+sudo docker create --name flows-agent-temp $AGENT_IMAGE 2>>/var/log/spacelift/error.log
+sudo docker cp flows-agent-temp:/usr/bin/agent /usr/bin/flows-agent 2>>/var/log/spacelift/error.log
+sudo docker rm -f flows-agent-temp 2>>/var/log/spacelift/error.log
 
-  #echo "Retrieving EC2 instance id and AMI id" >> /var/log/spacelift/info.log
-  #export SPACEFLOWS_METADATA_instance_id=$(ec2-metadata --instance-id | cut -d ' ' -f2)
-  #export SPACEFLOWS_METADATA_ami_id=$(ec2-metadata --ami-id | cut -d ' ' -f2)
+echo "Making the Flows agent executable" >> /var/log/spacelift/info.log
+chmod 755 /usr/bin/flows-agent 2>>/var/log/spacelift/error.log
 
-  #echo "Retrieving EC2 ASG ID" >> /var/log/spacelift/info.log
-  #export SPACEFLOWS_METADATA_asg_id=$(aws autoscaling --region=${region} describe-auto-scaling-instances --instance-ids $SPACEFLOWS_METADATA_instance_id | jq -r '.AutoScalingInstances[0].AutoScalingGroupName')
+echo "Creating agent runtime tempdir" >> /var/log/spacelift/info.log
+sudo mkdir -p /var/flows/runtimes 2>>/var/log/spacelift/error.log
+export FLOWS_DOCKER_MOUNTS_TEMPDIR="/var/flows/runtimes"
+export FLOWS_EXECUTOR="docker"
+export FLOWS_DOCKER_EXTRA_PARAMS="--runtime=runsc --cap-drop=ALL --security-opt no-new-privileges"
 
-  echo "Creating agent runtime tempdir" >> /var/log/spacelift/info.log
-  sudo mkdir -p /var/flows/runtimes 2>>/var/log/spacelift/error.log
-  export FLOWS_DOCKER_MOUNTS_TEMPDIR="/var/flows/runtimes"
-  export FLOWS_EXECUTOR="docker"
-  export FLOWS_DOCKER_EXTRA_PARAMS="--runtime=runsc --cap-drop=ALL --security-opt no-new-privileges"
+# Background process to poll for ASG termination
+# Lifecycle hooks don't notify the instance - we must poll to detect Terminating:Wait state
+AGENT_PID=""
+poll_for_termination() {
+  echo "Starting termination polling loop" >> /var/log/spacelift/info.log
+  while true; do
+    LIFECYCLE_STATE=$(aws autoscaling describe-auto-scaling-instances \
+      --region="${region}" \
+      --instance-ids "$INSTANCE_ID" \
+      --query 'AutoScalingInstances[0].LifecycleState' \
+      --output text 2>/dev/null)
 
-  echo "Starting the Flows agent binary" >> /var/log/spacelift/info.log
-  /usr/bin/flows-agent 1>>/var/log/spacelift/info.log 2>>/var/log/spacelift/error.log
-)}
+    if [ "$LIFECYCLE_STATE" = "Terminating:Wait" ]; then
+      echo "Detected Terminating:Wait state, initiating graceful shutdown" >> /var/log/spacelift/info.log
+      # Send SIGTERM to agent to initiate graceful shutdown
+      if [ -n "$AGENT_PID" ] && kill -0 "$AGENT_PID" 2>/dev/null; then
+        kill -TERM "$AGENT_PID"
+      fi
+      return
+    fi
+    sleep 5
+  done
+}
 
-# Reset the errexit option so if for some reason the flows agent stops, the poweroff should be run
-set +e
-flows_agent
-echo "Powering off in 5 seconds" >> /var/log/spacelift/error.log
+echo "Starting the Flows agent binary" >> /var/log/spacelift/info.log
+
+# Start agent in background
+/usr/bin/flows-agent 1>>/var/log/spacelift/info.log 2>>/var/log/spacelift/error.log &
+AGENT_PID=$!
+echo "Agent started with PID: $AGENT_PID" >> /var/log/spacelift/info.log
+
+# Start polling for termination in background
+poll_for_termination &
+POLL_PID=$!
+echo "Termination polling started with PID: $POLL_PID" >> /var/log/spacelift/info.log
+
+# Wait for agent to exit (either from poll signal or other reason)
+wait $AGENT_PID
+AGENT_EXIT_CODE=$?
+echo "Flows agent exited with code: $AGENT_EXIT_CODE" >> /var/log/spacelift/info.log
+
+# Stop polling process if still running
+kill $POLL_PID 2>/dev/null || true
+
+# Complete the lifecycle hook to allow instance termination to proceed
+complete_lifecycle_hook
+
+echo "Powering off in 5 seconds" >> /var/log/spacelift/info.log
 sleep 5
 poweroff
