@@ -158,6 +158,7 @@ export FLOWS_DOCKER_MOUNTS_TEMPDIR="/var/flows/runtimes"
 export FLOWS_EXECUTOR="docker"
 %{ if flows_docker_runtime_image != null ~}
 export FLOWS_DOCKER_RUNTIME_IMAGE="${flows_docker_runtime_image}"
+echo "docker runtime image ${flows_docker_runtime_image}"
 %{ endif ~}
 export FLOWS_DOCKER_EXTRA_PARAMS="--runtime=runsc --cap-drop=ALL --security-opt no-new-privileges"
 
