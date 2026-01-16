@@ -103,13 +103,14 @@ resource "aws_launch_template" "agent_pool" {
   }
 
   user_data = base64encode(templatefile("${path.module}/user_data.tftpl", {
-    gateway_endpoint         = var.gateway_endpoint
-    backend_endpoint         = var.backend_endpoint
-    credentials_secret_id    = aws_secretsmanager_secret.agent_credentials.name
-    region                   = data.aws_region.current.name
-    ecr_repository           = var.ecr_repository_url
-    private_ecr_repository   = var.ecr_repository_arn != null ? var.ecr_repository_url : ""
-    image_tag_ssm_param      = local.image_tag_ssm_param_name
+    gateway_endpoint           = var.gateway_endpoint
+    backend_endpoint           = var.backend_endpoint
+    credentials_secret_id      = aws_secretsmanager_secret.agent_credentials.name
+    region                     = data.aws_region.current.name
+    ecr_repository             = var.ecr_repository_url
+    private_ecr_repository     = var.ecr_repository_arn != null ? var.ecr_repository_url : ""
+    image_tag_ssm_param        = local.image_tag_ssm_param_name
+    flows_docker_runtime_image = var.flows_docker_runtime_image
   }))
 
   tag_specifications {
