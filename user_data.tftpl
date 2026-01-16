@@ -156,6 +156,9 @@ echo "Creating agent runtime tempdir" >> /var/log/spacelift/info.log
 sudo mkdir -p /var/flows/runtimes 2>>/var/log/spacelift/error.log
 export FLOWS_DOCKER_MOUNTS_TEMPDIR="/var/flows/runtimes"
 export FLOWS_EXECUTOR="docker"
+%{ if flows_docker_runtime_image != null ~}
+export FLOWS_DOCKER_RUNTIME_IMAGE="${flows_docker_runtime_image}"
+%{ endif ~}
 export FLOWS_DOCKER_EXTRA_PARAMS="--runtime=runsc --cap-drop=ALL --security-opt no-new-privileges"
 
 # Background process to poll for ASG termination

@@ -86,3 +86,9 @@ variable "agent_image_tag_ssm_param" {
   })
   default = null
 }
+
+variable "flows_docker_runtime_image" {
+  description = "Docker runtime image for Flows executor"
+  type        = string
+  default     = null
+}
