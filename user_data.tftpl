@@ -169,7 +169,7 @@ export HTTP_PROXY=${http_proxy}
 export FLOWS_ADDITIONAL_ROOT_CAS=${custom_ca_certificates}
 %{ endif }
 
-export FLOWS_DOCKER_EXTRA_PARAMS="--runtime=runsc --cap-drop=ALL --security-opt no-new-privileges%{ if custom_ca_certificates != null } -e NODE_EXTRA_CA_CERTS=${custom_ca_certificates}%{ endif }%{ if http_proxy != null } -e HTTP_PROXY=${http_proxy} -e HTTPS_PROXY=${http_proxy}%{ endif }"
+export FLOWS_DOCKER_EXTRA_PARAMS="--runtime=runsc --cap-drop=ALL --security-opt no-new-privileges %{ if http_proxy != null } -e HTTP_PROXY=${http_proxy} -e HTTPS_PROXY=${http_proxy} -e NODE_USE_ENV_PROXY=1%{ endif }"
 
 # Background process to poll for ASG termination
 # Lifecycle hooks don't notify the instance - we must poll to detect Terminating:Wait state

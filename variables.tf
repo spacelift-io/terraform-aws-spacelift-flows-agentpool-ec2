@@ -93,12 +93,6 @@ variable "flows_docker_runtime_image" {
   default     = null
 }
 
-variable "custom_ca_certificates" {
-  description = "Custom CA certificates to inject into docker containers"
-  type        = string
-  default     = null
-}
-
 variable "http_proxy" {
   description = "HTTP proxy URL for docker containers"
   type        = string
