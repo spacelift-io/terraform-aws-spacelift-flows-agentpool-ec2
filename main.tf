@@ -111,6 +111,7 @@ resource "aws_launch_template" "agent_pool" {
     private_ecr_repository     = var.ecr_repository_arn != null ? var.ecr_repository_url : ""
     image_tag_ssm_param        = local.image_tag_ssm_param_name
     flows_docker_runtime_image = var.flows_docker_runtime_image
+    custom_ca_certificates     = var.custom_ca_certificates
     http_proxy                 = var.http_proxy
   }))
 
