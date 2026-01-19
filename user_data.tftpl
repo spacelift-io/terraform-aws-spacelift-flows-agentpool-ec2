@@ -165,9 +165,9 @@ echo "docker runtime image ${flows_docker_runtime_image}"
 export HTTP_PROXY=${http_proxy}
 %{ endif ~}
 
-%{ if custom_ca_certificates != null }
+%{ if custom_ca_certificates != null ~}
 export FLOWS_ADDITIONAL_ROOT_CAS=${custom_ca_certificates}
-%{ endif }
+%{ endif ~}
 
 export FLOWS_DOCKER_EXTRA_PARAMS="--runtime=runsc --cap-drop=ALL --security-opt no-new-privileges %{ if http_proxy != null } -e HTTP_PROXY=${http_proxy} -e HTTPS_PROXY=${http_proxy} -e NODE_USE_ENV_PROXY=1%{ endif }"
 
