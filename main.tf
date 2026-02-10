@@ -115,7 +115,7 @@ resource "aws_launch_template" "agent_pool" {
     http_proxy                 = var.http_proxy
     datadog_api_key            = var.datadog_api_key
     datadog_site               = var.datadog_site
-    environment                = var.environment
+    datadog_environment                = var.datadog_environment
   }))
 
   tag_specifications {

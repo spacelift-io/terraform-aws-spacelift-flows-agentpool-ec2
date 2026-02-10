@@ -118,8 +118,8 @@ variable "datadog_site" {
   default     = "datadoghq.com"
 }
 
-variable "environment" {
-  description = "Environment name"
+variable "datadog_environment" {
+  description = "Datadog Environment name"
   type        = string
   default     = "flows-dev"
 }
