@@ -104,3 +104,16 @@ variable "http_proxy" {
   type        = string
   default     = null
 }
+
+variable "datadog_api_key" {
+  description = "Datadog API key for agent authentication"
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "datadog_site" {
+  description = "Datadog site (e.g., datadoghq.com, datadoghq.eu)"
+  type        = string
+  default     = "datadoghq.com"
+}

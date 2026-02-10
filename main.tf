@@ -113,6 +113,8 @@ resource "aws_launch_template" "agent_pool" {
     flows_docker_runtime_image = var.flows_docker_runtime_image
     custom_ca_certificates     = var.custom_ca_certificates
     http_proxy                 = var.http_proxy
+    datadog_api_key            = var.datadog_api_key
+    datadog_site               = var.datadog_site
   }))
 
   tag_specifications {
