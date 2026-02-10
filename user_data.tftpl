@@ -203,6 +203,7 @@ EOF
     --restart unless-stopped \
     -e DD_API_KEY="${datadog_api_key}" \
     -e DD_SITE="${datadog_site}" \
+    -e DD_TAGS="env:${environment} version:$AGENT_IMAGE_TAG" \
     -e DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT="localhost:4317" \
     -e DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT="localhost:4318" \
     -e DD_APM_ENABLED="true" \
