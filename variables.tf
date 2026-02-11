@@ -105,21 +105,8 @@ variable "http_proxy" {
   default     = null
 }
 
-variable "datadog_api_key" {
-  description = "Datadog API key for agent authentication"
+variable "custom_userdata_inject" {
+  description = "Custom bash script to inject into user_data before starting the Flows agent. Useful for setting up monitoring agents (e.g., Datadog), additional dependencies, or custom configuration."
   type        = string
   default     = null
-  sensitive   = true
-}
-
-variable "datadog_site" {
-  description = "Datadog site (e.g., datadoghq.com, datadoghq.eu)"
-  type        = string
-  default     = "datadoghq.com"
-}
-
-variable "datadog_environment" {
-  description = "Datadog Environment name"
-  type        = string
-  default     = "flows-dev"
 }

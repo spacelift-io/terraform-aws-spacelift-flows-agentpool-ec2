@@ -195,29 +195,8 @@ EOF
 
   export FLOWS_DOCKER_EXTRA_PARAMS="--runtime=runsc --cap-drop=ALL --security-opt no-new-privileges %{ if http_proxy != null } -e HTTP_PROXY=${http_proxy} -e HTTPS_PROXY=${http_proxy} -e NODE_USE_ENV_PROXY=1%{ endif }"
 
-%{ if datadog_api_key != null ~}
-  # Start Datadog agent container
-  echo "Starting Datadog agent container" >> /var/log/spacelift/info.log
-  sudo docker run -d \
-    --name datadog-agent \
-    --restart unless-stopped \
-    -e DD_API_KEY="${datadog_api_key}" \
-    -e DD_SITE="${datadog_site}" \
-    -e DD_TAGS="env:${datadog_environment} version:$AGENT_IMAGE_TAG" \
-    -e DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT="localhost:4317" \
-    -e DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT="localhost:4318" \
-    -e DD_APM_ENABLED="true" \
-    -e HOST_PROC=/proc \
-    -v /var/run/docker.sock:/var/run/docker.sock:ro \
-    -v /proc/:/host/proc/:ro \
-    -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro \
-    --network host \
-    public.ecr.aws/datadog/agent:7 2>>/var/log/spacelift/error.log
-  echo "Datadog agent container started" >> /var/log/spacelift/info.log
-
-  export FLOWS_AGENT_OPEN_TELEMETRY_ENVIRONMENT=${datadog_environment}
-  export FLOWS_AGENT_OPEN_TELEMETRY_COLLECTOR_ENDPOINT=localhost:4317
-
+%{ if custom_userdata_inject != null ~}
+  ${custom_userdata_inject}
 %{ endif ~}
 
   echo "Starting the Flows agent binary" >> /var/log/spacelift/info.log
