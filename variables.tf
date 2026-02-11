@@ -104,3 +104,9 @@ variable "http_proxy" {
   type        = string
   default     = null
 }
+
+variable "custom_userdata_inject" {
+  description = "Custom bash script to inject into user_data before starting the Flows agent. Useful for setting up monitoring agents (e.g., Datadog), additional dependencies, or custom configuration."
+  type        = string
+  default     = null
+}

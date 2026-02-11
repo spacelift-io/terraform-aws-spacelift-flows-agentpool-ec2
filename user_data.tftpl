@@ -195,6 +195,10 @@ EOF
 
   export FLOWS_DOCKER_EXTRA_PARAMS="--runtime=runsc --cap-drop=ALL --security-opt no-new-privileges %{ if http_proxy != null } -e HTTP_PROXY=${http_proxy} -e HTTPS_PROXY=${http_proxy} -e NODE_USE_ENV_PROXY=1%{ endif }"
 
+%{ if custom_userdata_inject != null ~}
+  ${custom_userdata_inject}
+%{ endif ~}
+
   echo "Starting the Flows agent binary" >> /var/log/spacelift/info.log
 
   # Disable set -e for agent execution so we can handle exit properly

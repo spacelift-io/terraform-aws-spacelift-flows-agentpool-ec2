@@ -113,6 +113,7 @@ resource "aws_launch_template" "agent_pool" {
     flows_docker_runtime_image = var.flows_docker_runtime_image
     custom_ca_certificates     = var.custom_ca_certificates
     http_proxy                 = var.http_proxy
+    custom_userdata_inject     = var.custom_userdata_inject
   }))
 
   tag_specifications {
