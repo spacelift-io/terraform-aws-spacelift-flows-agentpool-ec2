@@ -215,7 +215,7 @@ EOF
     public.ecr.aws/datadog/agent:7 2>>/var/log/spacelift/error.log
   echo "Datadog agent container started" >> /var/log/spacelift/info.log
 
-
+  export FLOWS_AGENT_OPEN_TELEMETRY_ENVIRONMENT=${datadog_environment}
   export FLOWS_AGENT_OPEN_TELEMETRY_COLLECTOR_ENDPOINT=localhost:4317
 
 %{ endif ~}
