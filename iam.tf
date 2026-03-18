@@ -1,6 +1,6 @@
 # IAM role for agent instances
 resource "aws_iam_role" "agent_instance" {
-  name = "flows-agent-instance-role"
+  name = "${var.name}-agent-instance-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -18,7 +18,7 @@ resource "aws_iam_role" "agent_instance" {
 
 # IAM policy for agent instances
 resource "aws_iam_role_policy" "agent_instance" {
-  name = "flows-agent-instance-policy"
+  name = "${var.name}-agent-instance-policy"
   role = aws_iam_role.agent_instance.id
 
   policy = jsonencode({

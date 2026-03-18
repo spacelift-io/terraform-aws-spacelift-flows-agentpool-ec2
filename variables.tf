@@ -1,4 +1,10 @@
 # Variables
+variable "name" {
+  description = "Name prefix used for all resources. Must be unique per deployment in the same AWS account/region."
+  type        = string
+  default     = "flows"
+}
+
 variable "aws_region" {
   description = "AWS region"
   type        = string
