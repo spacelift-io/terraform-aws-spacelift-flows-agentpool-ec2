@@ -5,7 +5,7 @@ module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 6.0"
 
-  name = "flows-agent-pool"
+  name = "${var.name}-agent-pool"
   cidr = "10.1.0.0/16"
 
   azs             = data.aws_availability_zones.available.names
@@ -34,7 +34,7 @@ data "aws_availability_zones" "available" {
 
 # Security group for agents
 resource "aws_security_group" "agent_pool" {
-  name        = "flows-agent-pool-sg"
+  name        = "${var.name}-agent-pool-sg"
   description = "Security group for Flows agent pool"
   vpc_id      = var.reuse_vpc_id == null ? module.vpc[0].vpc_id : var.reuse_vpc_id
 

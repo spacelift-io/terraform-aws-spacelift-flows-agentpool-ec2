@@ -8,3 +8,8 @@ output "autoscaling_group_arn" {
   description = "ARN of the agent pool autoscaling group"
   value       = aws_autoscaling_group.agent_pool.arn
 }
+
+output "agent_pool_security_group_id" {
+  description = "ID of the agent pool security group"
+  value = aws_security_group.agent_pool.id
+}

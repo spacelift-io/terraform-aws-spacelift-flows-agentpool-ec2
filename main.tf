@@ -45,7 +45,7 @@ data "aws_ami" "worker" {
 
 # Agent credentials secret
 resource "aws_secretsmanager_secret" "agent_credentials" {
-  name        = "flows-agent-pool-credentials"
+  name        = "${var.name}-agent-pool-credentials"
   description = "Credentials for Flows agent pool"
 
   tags = {
@@ -63,13 +63,13 @@ resource "aws_secretsmanager_secret_version" "agent_credentials" {
 
 # IAM instance profile
 resource "aws_iam_instance_profile" "agent_instance" {
-  name = "flows-agent-instance-profile"
+  name = "${var.name}-agent-instance-profile"
   role = aws_iam_role.agent_instance.name
 }
 
 # Launch template for agent instances
 resource "aws_launch_template" "agent_pool" {
-  name_prefix = "flows-agent-"
+  name_prefix = "${var.name}-agent-"
 
   image_id      = data.aws_ami.worker.id
   instance_type = var.agent_instance_type
@@ -119,7 +119,7 @@ resource "aws_launch_template" "agent_pool" {
   tag_specifications {
     resource_type = "instance"
     tags = {
-      Name = "flows-agent"
+      Name = "${var.name}-agent"
       Type = "agent-pool"
     }
   }
@@ -128,14 +128,14 @@ resource "aws_launch_template" "agent_pool" {
 
 resource "aws_ssm_parameter" "agent_image_tag" {
   count = var.agent_image_tag_ssm_param == null ? 1 : 0
-  name  = "/flows/agent-pool/ImageTag"
+  name  = "/${var.name}/agent-pool/ImageTag"
   type  = "String"
   value = var.agent_image_tag
 }
 
 # Auto Scaling Group
 resource "aws_autoscaling_group" "agent_pool" {
-  name                = "flows-agent-pool"
+  name                = "${var.name}-agent-pool"
   vpc_zone_identifier = var.reuse_vpc_id == null ? module.vpc[0].private_subnets : var.reuse_vpc_subnet_ids
   min_size            = var.min_size
   max_size            = var.max_size
@@ -168,7 +168,7 @@ resource "aws_autoscaling_group" "agent_pool" {
 
   tag {
     key                 = "Name"
-    value               = "flows-agent"
+    value               = "${var.name}-agent"
     propagate_at_launch = true
   }
 
@@ -181,7 +181,7 @@ resource "aws_autoscaling_group" "agent_pool" {
 
 # Lifecycle hook to allow graceful shutdown during instance termination
 resource "aws_autoscaling_lifecycle_hook" "agent_termination" {
-  name                   = "flows-agent-termination-hook"
+  name                   = "${var.name}-agent-termination-hook"
   autoscaling_group_name = aws_autoscaling_group.agent_pool.name
   lifecycle_transition   = "autoscaling:EC2_INSTANCE_TERMINATING"
   heartbeat_timeout      = 300 # 5 minutes for graceful shutdown
