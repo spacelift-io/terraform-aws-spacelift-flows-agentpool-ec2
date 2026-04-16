@@ -209,6 +209,22 @@ EOF
   AGENT_PID=$!
   echo "Agent started with PID: $AGENT_PID" >> /var/log/spacelift/info.log
 
+  # Verify the agent is still alive after a short delay, then signal the launch
+  # lifecycle hook so the ASG considers this instance healthy. If the agent
+  # crashed on startup the hook will time out and ABANDON the instance.
+  sleep 10
+  if kill -0 "$AGENT_PID" 2>/dev/null; then
+    echo "Agent alive after 10s, completing launch lifecycle hook" >> /var/log/spacelift/info.log
+    aws autoscaling complete-lifecycle-action \
+      --lifecycle-hook-name "flows-agent-launch-hook" \
+      --auto-scaling-group-name "$ASG_NAME" \
+      --instance-id "$INSTANCE_ID" \
+      --lifecycle-action-result "CONTINUE" \
+      --region "${region}" 2>>/var/log/spacelift/error.log
+  else
+    echo "Agent crashed on startup, leaving instance in Pending:Wait (will be abandoned by ASG)" >> /var/log/spacelift/info.log
+  fi
+
   # Start polling for termination in background
   poll_for_termination &
   POLL_PID=$!

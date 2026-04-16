@@ -187,3 +187,14 @@ resource "aws_autoscaling_lifecycle_hook" "agent_termination" {
   heartbeat_timeout      = 300 # 5 minutes for graceful shutdown
   default_result         = "CONTINUE"
 }
+
+# Lifecycle hook to gate instance readiness on a successful agent start.
+# Instance stays in Pending:Wait until user_data confirms the agent is alive,
+# so an ASG instance refresh won't retire the next old instance too early.
+resource "aws_autoscaling_lifecycle_hook" "agent_launch" {
+  name                   = "flows-agent-launch-hook"
+  autoscaling_group_name = aws_autoscaling_group.agent_pool.name
+  lifecycle_transition   = "autoscaling:EC2_INSTANCE_LAUNCHING"
+  heartbeat_timeout      = 600 # 10 minutes — image pull + start can be slow
+  default_result         = "ABANDON"
+}
