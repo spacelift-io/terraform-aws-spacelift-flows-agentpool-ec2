@@ -28,9 +28,16 @@ module "flows_agent_pool" {
 ### Instance type
 
 The default is `c7i.xlarge`. Avoid burstable instance families (`t2`, `t3`,
-`t4g`): agents run untrusted JavaScript in sibling containers and can consume
-sustained CPU, which exhausts the CPU credit balance and throttles the
-instance. Pick a general-purpose or compute-optimized instance instead.
+`t4g`): agents frequently start up new Node.js runtimes, which can exhaust the
+CPU credit balance and throttle the instance. Pick a general-purpose or
+compute-optimized instance instead.
+
+### Runtime sandboxing with gVisor
+
+Each runtime container runs under [gVisor](https://gvisor.dev/) (`runsc`),
+which intercepts system calls in user space instead of passing them to the
+host kernel. This limits the blast radius if untrusted app or block code
+escapes its container.
 
 ### Using an existing VPC
 
