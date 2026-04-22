@@ -19,11 +19,18 @@ module "flows_agent_pool" {
   backend_endpoint = "https://useflows.eu"
   gateway_endpoint = "https://gateway.useflows.eu"
 
-  agent_instance_type = "t3.medium"
+  agent_instance_type = "c7i.xlarge"
   min_size            = 1
   max_size            = 10
 }
 ```
+
+### Instance type
+
+The default is `c7i.xlarge`. Avoid burstable instance families (`t2`, `t3`,
+`t4g`): agents run untrusted JavaScript in sibling containers and can consume
+sustained CPU, which exhausts the CPU credit balance and throttles the
+instance. Pick a general-purpose or compute-optimized instance instead.
 
 ### Using an existing VPC
 
@@ -54,7 +61,7 @@ module "flows_agent_pool" {
 | agent_pool_token | Token for the agent pool | `string` | n/a | yes |
 | backend_endpoint | Backend endpoint URL for agents to connect | `string` | n/a | yes |
 | gateway_endpoint | Gateway endpoint URL for agents to connect | `string` | n/a | yes |
-| agent_instance_type | EC2 instance type for agents | `string` | `"t3.medium"` | no |
+| agent_instance_type | EC2 instance type for agents | `string` | `"c7i.xlarge"` | no |
 | min_size | Minimum number of agent instances | `number` | `1` | no |
 | max_size | Maximum number of agent instances | `number` | `10` | no |
 | ecr_repository_url | ECR repository URL for Flows images | `string` | `"public.ecr.aws/w5z2f6e8/spacelift-flows-agent"` | no |
