@@ -36,8 +36,7 @@ compute-optimized instance instead.
 
 Each runtime container runs under [gVisor](https://gvisor.dev/) (`runsc`),
 which intercepts system calls in user space instead of passing them to the
-host kernel. This limits the blast radius if untrusted app or block code
-escapes its container.
+host kernel. This provides safe sandboxing for app code and flow evaluations.
 
 ### Using an existing VPC
 
