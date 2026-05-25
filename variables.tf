@@ -111,6 +111,12 @@ variable "http_proxy" {
   default     = null
 }
 
+variable "cloudwatch_log_retention_days" {
+  description = "Retention period in days for CloudWatch log group /aws/ec2/flows-agent"
+  type        = number
+  default     = 7
+}
+
 variable "custom_userdata_inject" {
   description = "Custom bash script to inject into user_data before starting the Flows agent. Useful for setting up monitoring agents (e.g., Datadog), additional dependencies, or custom configuration."
   type        = string

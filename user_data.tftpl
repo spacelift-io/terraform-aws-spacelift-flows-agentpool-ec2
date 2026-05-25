@@ -69,19 +69,19 @@ run_agent() {(
             "file_path": "/var/log/spacelift/info.log",
             "log_group_name": "/aws/ec2/flows-agent",
             "log_stream_name": "{instance_id}/info",
-            "retention_in_days": 7
+            "retention_in_days": ${cloudwatch_log_retention_days}
           },
           {
             "file_path": "/var/log/spacelift/error.log",
             "log_group_name": "/aws/ec2/flows-agent",
             "log_stream_name": "{instance_id}/error",
-            "retention_in_days": 7
+            "retention_in_days": ${cloudwatch_log_retention_days}
           },
           {
             "file_path": "/var/log/flows/**",
             "log_group_name": "/aws/ec2/flows-agent",
             "log_stream_name": "{instance_id}/flows/{ip_address}",
-            "retention_in_days": 7
+            "retention_in_days": ${cloudwatch_log_retention_days}
           }
         ]
       }
