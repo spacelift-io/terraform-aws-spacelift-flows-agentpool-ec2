@@ -40,7 +40,7 @@ variable "max_size" {
 }
 
 variable "desired_capacity" {
-  description = "Desired number of agent instances"
+  description = "Number of agent instances the pool starts with"
   type        = number
   default     = 2
 }

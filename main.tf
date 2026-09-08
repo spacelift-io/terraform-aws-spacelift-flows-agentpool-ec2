@@ -140,7 +140,7 @@ resource "aws_autoscaling_group" "agent_pool" {
   vpc_zone_identifier = var.reuse_vpc_id == null ? module.vpc[0].private_subnets : var.reuse_vpc_subnet_ids
   min_size            = var.min_size
   max_size            = var.max_size
-  desired_capacity    = null
+  desired_capacity    = var.desired_capacity
 
   launch_template {
     id      = aws_launch_template.agent_pool.id
@@ -177,6 +177,13 @@ resource "aws_autoscaling_group" "agent_pool" {
     key                 = "AgentPoolID"
     value               = "flows"
     propagate_at_launch = true
+  }
+
+  lifecycle {
+    # desired_capacity is only honoured when the pool is first created. From
+    # then on, the size is owned by AWS, so an apply never resizes a running
+    # pool back to the module default.
+    ignore_changes = [desired_capacity]
   }
 }
 
