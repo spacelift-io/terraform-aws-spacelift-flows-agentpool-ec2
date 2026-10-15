@@ -20,11 +20,17 @@ locals {
   image_tag_ssm_param_arn  = var.agent_image_tag_ssm_param == null ? aws_ssm_parameter.agent_image_tag[0].arn : var.agent_image_tag_ssm_param.arn
   image_tag_ssm_param_name = var.agent_image_tag_ssm_param == null ? aws_ssm_parameter.agent_image_tag[0].name : var.agent_image_tag_ssm_param.name
 
+  # Graviton instance types only support arm64; everything else runs x86_64.
+  ami_architecture = contains(data.aws_ec2_instance_type.agent.supported_architectures, "arm64") ? "arm64" : "x86_64"
+}
+
+data "aws_ec2_instance_type" "agent" {
+  instance_type = var.agent_instance_type
 }
 
 data "aws_ami" "worker" {
   most_recent = true
-  name_regex  = "^spacelift-\\d{10}-x86_64$"
+  name_regex  = "^spacelift-\\d{10}-${local.ami_architecture}$"
   owners      = [local.ami_owner_ids[data.aws_partition.current.partition]]
 
   filter {
@@ -39,7 +45,7 @@ data "aws_ami" "worker" {
 
   filter {
     name   = "architecture"
-    values = ["x86_64"]
+    values = [local.ami_architecture]
   }
 }
 
