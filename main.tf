@@ -22,6 +22,11 @@ locals {
 
   # Graviton instance types only support arm64; everything else runs x86_64.
   ami_architecture = contains(data.aws_ec2_instance_type.agent.supported_architectures, "arm64") ? "arm64" : "x86_64"
+
+  # With public IPs, agents sit in the public subnets and egress through the
+  # Internet Gateway, so the module-created VPC needs no NAT gateway.
+  public_networking      = var.associate_public_ip_address == true
+  created_vpc_subnet_ids = var.reuse_vpc_id == null ? (local.public_networking ? module.vpc[0].public_subnets : module.vpc[0].private_subnets) : null
 }
 
 data "aws_ec2_instance_type" "agent" {
@@ -96,7 +101,7 @@ resource "aws_launch_template" "agent_pool" {
 
   network_interfaces {
     security_groups             = [aws_security_group.agent_pool.id]
-    associate_public_ip_address = false
+    associate_public_ip_address = var.associate_public_ip_address
     delete_on_termination       = true
   }
 
@@ -160,7 +165,7 @@ resource "aws_ssm_parameter" "agent_image_tag" {
 # Auto Scaling Group
 resource "aws_autoscaling_group" "agent_pool" {
   name                = "${var.name}-agent-pool"
-  vpc_zone_identifier = var.reuse_vpc_id == null ? module.vpc[0].private_subnets : var.reuse_vpc_subnet_ids
+  vpc_zone_identifier = var.reuse_vpc_id == null ? local.created_vpc_subnet_ids : var.reuse_vpc_subnet_ids
   min_size            = var.min_size
   max_size            = var.max_size
   desired_capacity    = var.desired_capacity

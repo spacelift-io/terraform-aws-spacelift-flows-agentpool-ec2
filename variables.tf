@@ -99,6 +99,12 @@ variable "reuse_vpc_subnet_ids" {
   default     = null
 }
 
+variable "associate_public_ip_address" {
+  description = "Whether agent instances get a public IP address. false (default) expects private subnets with egress through a NAT gateway or proxy. true expects public subnets with a route to an Internet Gateway; when the module creates the VPC, agents are placed in its public subnets and no NAT gateway is created. null defers to the subnet's map_public_ip_on_launch setting."
+  type        = bool
+  default     = false
+}
+
 variable "agent_image_tag" {
   type    = string
   default = "latest"
