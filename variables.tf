@@ -99,6 +99,17 @@ variable "reuse_vpc_subnet_ids" {
   default     = null
 }
 
+variable "network_mode" {
+  description = "How agents reach the internet. \"private\" (default) places agents in private subnets with egress through a NAT gateway or your own proxy; when the module creates the VPC, it creates a NAT gateway. \"public\" gives each agent a public IP in public subnets with a route to an Internet Gateway; when the module creates the VPC, agents are placed in its public subnets and no NAT gateway is created."
+  type        = string
+  default     = "private"
+
+  validation {
+    condition     = contains(["private", "public"], var.network_mode)
+    error_message = "network_mode must be \"private\" or \"public\"."
+  }
+}
+
 variable "agent_image_tag" {
   type    = string
   default = "latest"
