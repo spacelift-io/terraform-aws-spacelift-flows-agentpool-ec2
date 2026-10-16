@@ -58,14 +58,28 @@ variable "ecr_repository_arn" {
 }
 
 variable "agent_pool_id" {
-  description = "ID of the agent pool"
+  description = "ID of the agent pool. Required unless existing_credentials_secret_arn is set."
   type        = string
+  default     = null
 }
 
 variable "agent_pool_token" {
-  description = "Token for the agent pool"
+  description = "Token for the agent pool. Required unless existing_credentials_secret_arn is set."
   type        = string
+  default     = null
   sensitive   = true
+}
+
+variable "existing_credentials_secret_arn" {
+  description = "ARN of an existing Secrets Manager secret holding the agent pool credentials as JSON with FLOWS_AGENT_POOL_ID and FLOWS_AGENT_POOL_TOKEN keys. If set, the module does not create its own secret and agent_pool_id/agent_pool_token are ignored."
+  type        = string
+  default     = null
+}
+
+variable "credentials_secret_kms_key_arn" {
+  description = "ARN of the customer-managed KMS key encrypting the existing credentials secret. Only needed when existing_credentials_secret_arn uses a CMK."
+  type        = string
+  default     = null
 }
 
 variable "reuse_vpc_id" {

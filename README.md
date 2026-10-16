@@ -54,17 +54,41 @@ module "flows_agent_pool" {
 }
 ```
 
+### Using an existing credentials secret
+
+By default the module stores `agent_pool_id` and `agent_pool_token` in a new
+Secrets Manager secret named `<name>-agent-pool-credentials`. If you already keep
+the credentials in Secrets Manager, pass its ARN instead. The module then skips
+creating its own secret and the token never passes through Terraform. The
+secret must be a JSON object with `FLOWS_AGENT_POOL_ID` and
+`FLOWS_AGENT_POOL_TOKEN` keys.
+
+```hcl
+module "flows_agent_pool" {
+  source = "github.com/spacelift-io/terraform-aws-spacelift-flows-agentpool-ec2?ref=main"
+
+  existing_credentials_secret_arn = "arn:aws:secretsmanager:eu-central-1:123456789012:secret:prod/flows-worker-AbCdEf"
+  backend_endpoint                = "https://useflows.eu"
+  gateway_endpoint                = "https://gateway.useflows.eu"
+}
+```
+
+If the secret is encrypted with a customer-managed KMS key, also set
+`credentials_secret_kms_key_arn` so the instances can decrypt it.
+
 ## Requirements
 
-- Terraform >= 1.0
+- Terraform >= 1.2
 - AWS provider ~> 6.0
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| agent_pool_id | ID of the agent pool | `string` | n/a | yes |
-| agent_pool_token | Token for the agent pool | `string` | n/a | yes |
+| agent_pool_id | ID of the agent pool. Required unless `existing_credentials_secret_arn` is set | `string` | `null` | no |
+| agent_pool_token | Token for the agent pool. Required unless `existing_credentials_secret_arn` is set | `string` | `null` | no |
+| existing_credentials_secret_arn | ARN of an existing Secrets Manager secret with `FLOWS_AGENT_POOL_ID` and `FLOWS_AGENT_POOL_TOKEN` keys. If set, the module does not create its own secret | `string` | `null` | no |
+| credentials_secret_kms_key_arn | ARN of the customer-managed KMS key encrypting the existing credentials secret | `string` | `null` | no |
 | backend_endpoint | Backend endpoint URL for agents to connect | `string` | n/a | yes |
 | gateway_endpoint | Gateway endpoint URL for agents to connect | `string` | n/a | yes |
 | agent_instance_type | EC2 instance type for agents | `string` | `"c7i.xlarge"` | no |
@@ -89,7 +113,7 @@ module "flows_agent_pool" {
 - Auto Scaling Group with EC2 instances running the Flows agent
 - Launch template with the Spacelift AMI
 - IAM role and instance profile for agent permissions
-- Secrets Manager secret for agent credentials
+- Secrets Manager secret for agent credentials (optional, if not providing an existing secret)
 - Security group allowing outbound traffic
 - VPC with public/private subnets and NAT gateway (optional, if not reusing existing VPC)
 - SSM parameter for agent image tag (optional, if not providing existing parameter)

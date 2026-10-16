@@ -50,7 +50,15 @@ data "aws_ami" "worker" {
 }
 
 # Agent credentials secret
+locals {
+  create_credentials_secret = var.existing_credentials_secret_arn == null
+  credentials_secret_id     = local.create_credentials_secret ? aws_secretsmanager_secret.agent_credentials[0].name : var.existing_credentials_secret_arn
+  credentials_secret_arn    = local.create_credentials_secret ? aws_secretsmanager_secret.agent_credentials[0].arn : var.existing_credentials_secret_arn
+}
+
 resource "aws_secretsmanager_secret" "agent_credentials" {
+  count = local.create_credentials_secret ? 1 : 0
+
   name        = "${var.name}-agent-pool-credentials"
   description = "Credentials for Flows agent pool"
 
@@ -60,7 +68,9 @@ resource "aws_secretsmanager_secret" "agent_credentials" {
 }
 
 resource "aws_secretsmanager_secret_version" "agent_credentials" {
-  secret_id = aws_secretsmanager_secret.agent_credentials.id
+  count = local.create_credentials_secret ? 1 : 0
+
+  secret_id = aws_secretsmanager_secret.agent_credentials[0].id
   secret_string = jsonencode({
     FLOWS_AGENT_POOL_ID    = var.agent_pool_id
     FLOWS_AGENT_POOL_TOKEN = var.agent_pool_token
@@ -111,7 +121,7 @@ resource "aws_launch_template" "agent_pool" {
   user_data = base64encode(templatefile("${path.module}/user_data.tftpl", {
     gateway_endpoint           = var.gateway_endpoint
     backend_endpoint           = var.backend_endpoint
-    credentials_secret_id      = aws_secretsmanager_secret.agent_credentials.name
+    credentials_secret_id      = local.credentials_secret_id
     region                     = data.aws_region.current.name
     ecr_repository             = var.ecr_repository_url
     private_ecr_repository     = var.ecr_repository_arn != null ? var.ecr_repository_url : ""
@@ -128,6 +138,13 @@ resource "aws_launch_template" "agent_pool" {
     tags = {
       Name = "${var.name}-agent"
       Type = "agent-pool"
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.existing_credentials_secret_arn != null || (var.agent_pool_id != null && var.agent_pool_token != null)
+      error_message = "Either existing_credentials_secret_arn or both agent_pool_id and agent_pool_token must be set."
     }
   }
 }

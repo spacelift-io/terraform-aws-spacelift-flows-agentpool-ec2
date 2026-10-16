@@ -30,7 +30,7 @@ resource "aws_iam_role_policy" "agent_instance" {
           Action = [
             "secretsmanager:GetSecretValue"
           ]
-          Resource = aws_secretsmanager_secret.agent_credentials.arn
+          Resource = local.credentials_secret_arn
         },
         {
           Effect = "Allow"
@@ -95,6 +95,15 @@ resource "aws_iam_role_policy" "agent_instance" {
           Resource = local.image_tag_ssm_param_arn
         },
       ],
+      var.credentials_secret_kms_key_arn != null ? [
+        {
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt"
+          ]
+          Resource = var.credentials_secret_kms_key_arn
+        },
+      ] : [],
       var.ecr_repository_arn != null ? [
         {
           Effect = "Allow"
