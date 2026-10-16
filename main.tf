@@ -51,7 +51,7 @@ data "aws_ami" "worker" {
 
 # Agent credentials secret
 locals {
-  create_credentials_secret = var.existing_credentials_secret_arn == null
+  create_credentials_secret = var.create_credentials_secret
   credentials_secret_id     = local.create_credentials_secret ? aws_secretsmanager_secret.agent_credentials[0].name : var.existing_credentials_secret_arn
   credentials_secret_arn    = local.create_credentials_secret ? aws_secretsmanager_secret.agent_credentials[0].arn : var.existing_credentials_secret_arn
 }
@@ -143,8 +143,8 @@ resource "aws_launch_template" "agent_pool" {
 
   lifecycle {
     precondition {
-      condition     = var.existing_credentials_secret_arn != null || (var.agent_pool_id != null && var.agent_pool_token != null)
-      error_message = "Either existing_credentials_secret_arn or both agent_pool_id and agent_pool_token must be set."
+      condition     = var.create_credentials_secret ? (var.agent_pool_id != null && var.agent_pool_token != null) : var.existing_credentials_secret_arn != null
+      error_message = "Set agent_pool_id and agent_pool_token, or set create_credentials_secret = false and provide existing_credentials_secret_arn."
     }
   }
 }
