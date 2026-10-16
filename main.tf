@@ -25,7 +25,7 @@ locals {
 
   # With public IPs, agents sit in the public subnets and egress through the
   # Internet Gateway, so the module-created VPC needs no NAT gateway.
-  public_networking      = var.associate_public_ip_address == true
+  public_networking      = var.network_mode == "public"
   created_vpc_subnet_ids = var.reuse_vpc_id == null ? (local.public_networking ? module.vpc[0].public_subnets : module.vpc[0].private_subnets) : null
 }
 
@@ -101,7 +101,7 @@ resource "aws_launch_template" "agent_pool" {
 
   network_interfaces {
     security_groups             = [aws_security_group.agent_pool.id]
-    associate_public_ip_address = var.associate_public_ip_address
+    associate_public_ip_address = local.public_networking
     delete_on_termination       = true
   }
 

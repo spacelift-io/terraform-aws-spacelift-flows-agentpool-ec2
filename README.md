@@ -69,12 +69,12 @@ module "flows_agent_pool" {
 }
 ```
 
-### Public IPs instead of a NAT gateway
+### Public networking instead of a NAT gateway
 
-By default, agents have no public IP and reach the internet through a NAT
-gateway (or your own proxy). Set `associate_public_ip_address = true` to give
-each instance a public IP instead. When the module creates the VPC, the agents
-are then placed in its public subnets and no NAT gateway is created. When
+By default (`network_mode = "private"`), agents have no public IP and reach the
+internet through a NAT gateway (or your own proxy). Set `network_mode = "public"`
+to give each instance a public IP instead. When the module creates the VPC, the
+agents are then placed in its public subnets and no NAT gateway is created. When
 reusing a VPC, pass public subnets that route to an Internet Gateway.
 
 ```hcl
@@ -86,11 +86,10 @@ module "flows_agent_pool" {
   backend_endpoint = "https://useflows.eu"
   gateway_endpoint = "https://gateway.useflows.eu"
 
-  associate_public_ip_address = true
+  network_mode = "public"
 }
 ```
 
-Set it to `null` to defer to the subnet's `map_public_ip_on_launch` setting.
 The security group allows no inbound traffic, so instances stay unreachable
 from the internet either way.
 
@@ -140,7 +139,7 @@ If the secret is encrypted with a customer-managed KMS key, also set
 | ecr_repository_arn | ECR repository ARN for Flows images (optional, for private ECR) | `string` | `null` | no |
 | reuse_vpc_id | Optionally provide an existing VPC ID to reuse | `string` | `null` | no |
 | reuse_vpc_subnet_ids | Provide existing subnet IDs to reuse, if reusing VPC | `list(string)` | `null` | no |
-| associate_public_ip_address | Whether agent instances get a public IP address. `true` places agents in the public subnets of the module-created VPC and skips the NAT gateway; `null` defers to the subnet's `map_public_ip_on_launch` setting | `bool` | `false` | no |
+| network_mode | How agents reach the internet: `"private"` (private subnets with a NAT gateway or your own proxy) or `"public"` (public IP per instance, public subnets of the module-created VPC, no NAT gateway) | `string` | `"private"` | no |
 | agent_image_tag | Docker image tag for the agent | `string` | `"latest"` | no |
 | agent_image_tag_ssm_param | SSM parameter for agent image tag. If provided, will use this instead of creating a new one | `object({ arn = string, name = string })` | `null` | no |
 
@@ -158,5 +157,5 @@ If the secret is encrypted with a customer-managed KMS key, also set
 - IAM role and instance profile for agent permissions
 - Secrets Manager secret for agent credentials (optional, if not providing an existing secret)
 - Security group allowing outbound traffic
-- VPC with public/private subnets, plus a NAT gateway unless `associate_public_ip_address = true` (optional, if not reusing existing VPC)
+- VPC with public/private subnets, plus a NAT gateway unless `network_mode = "public"` (optional, if not reusing existing VPC)
 - SSM parameter for agent image tag (optional, if not providing existing parameter)
