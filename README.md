@@ -32,6 +32,21 @@ The default is `c7i.xlarge`. Avoid burstable instance families (`t2`, `t3`,
 CPU credit balance and throttle the instance. Pick a general-purpose or
 compute-optimized instance instead.
 
+### CPU architecture (amd64 and arm64)
+
+Both amd64 (`x86_64`) and arm64 (AWS Graviton) instances are supported. The
+module detects the architecture of `agent_instance_type` and selects the
+matching Spacelift AMI automatically, so switching to arm64 only requires an
+arm64 instance type:
+
+```hcl
+agent_instance_type = "c7g.xlarge"
+```
+
+The default agent image is published for both architectures. If you use your
+own image via `ecr_repository_url`, make sure it is built for the architecture
+of your instance type (or as a multi-arch image).
+
 ### Runtime sandboxing with gVisor
 
 Each runtime container runs under [gVisor](https://gvisor.dev/) (`runsc`),
@@ -67,7 +82,7 @@ module "flows_agent_pool" {
 | agent_pool_token | Token for the agent pool | `string` | n/a | yes |
 | backend_endpoint | Backend endpoint URL for agents to connect | `string` | n/a | yes |
 | gateway_endpoint | Gateway endpoint URL for agents to connect | `string` | n/a | yes |
-| agent_instance_type | EC2 instance type for agents | `string` | `"c7i.xlarge"` | no |
+| agent_instance_type | EC2 instance type for agents (amd64 or arm64; the matching AMI is selected automatically) | `string` | `"c7i.xlarge"` | no |
 | min_size | Minimum number of agent instances | `number` | `1` | no |
 | max_size | Maximum number of agent instances | `number` | `10` | no |
 | ecr_repository_url | ECR repository URL for Flows images | `string` | `"public.ecr.aws/w5z2f6e8/spacelift-flows-agent"` | no |
@@ -87,7 +102,7 @@ module "flows_agent_pool" {
 ## What gets created
 
 - Auto Scaling Group with EC2 instances running the Flows agent
-- Launch template with the Spacelift AMI
+- Launch template with the Spacelift AMI matching the instance architecture (amd64 or arm64)
 - IAM role and instance profile for agent permissions
 - Secrets Manager secret for agent credentials
 - Security group allowing outbound traffic
