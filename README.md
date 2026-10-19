@@ -69,6 +69,41 @@ module "flows_agent_pool" {
 }
 ```
 
+When `reuse_vpc_id` is set, the module does not create any networking
+resources: no VPC, subnets, NAT gateway, Elastic IP, Internet Gateway, route
+tables, or route table associations. Agents are launched directly into
+`reuse_vpc_subnet_ids`, and the module only creates its security group
+(`<name>-agent-pool-sg`, all outbound traffic allowed, no inbound rules) in the
+existing VPC.
+
+Requirements for the existing network:
+
+- `reuse_vpc_subnet_ids` must be set whenever `reuse_vpc_id` is set, and every
+  subnet must belong to that VPC.
+- The subnets must match `network_mode`:
+  - `"private"` (default): instances get no public IP, so pass private subnets
+    whose route tables provide outbound access, typically
+    `0.0.0.0/0 -> existing NAT gateway`. Public subnets that only route through
+    an Internet Gateway will not work in this mode.
+  - `"public"`: pass public subnets with a `0.0.0.0/0 -> Internet Gateway`
+    route. See [Public networking instead of a NAT gateway](#public-networking-instead-of-a-nat-gateway).
+- The VPC must have DNS support enabled (`enableDnsSupport`), and DNS hostnames
+  enabled if you rely on private DNS for interface VPC endpoints.
+
+The agents need outbound HTTPS (443) access to:
+
+| Destination | Used for |
+|-------------|----------|
+| `backend_endpoint` and `gateway_endpoint` | Connecting the agent to Flows |
+| `public.ecr.aws` and the `ecr-public` API in `us-east-1` | Pulling the default agent image |
+| ECR API and registry in your region (`ecr_repository_url`) | Pulling the agent image, only when using a private ECR repository |
+| Secrets Manager | Reading the agent pool credentials |
+| SSM (`ssm`, `ssmmessages`, `ec2messages`) | Reading the image tag parameter and SSM Session Manager access |
+| CloudWatch Logs | Shipping agent logs |
+
+Any images, packages, or endpoints used by your flows or by
+`custom_userdata_inject` must be reachable too.
+
 ### Public networking instead of a NAT gateway
 
 By default (`network_mode = "private"`), agents have no public IP and reach the
@@ -137,8 +172,8 @@ If the secret is encrypted with a customer-managed KMS key, also set
 | max_size | Maximum number of agent instances | `number` | `10` | no |
 | ecr_repository_url | ECR repository URL for Flows images | `string` | `"public.ecr.aws/w5z2f6e8/spacelift-flows-agent"` | no |
 | ecr_repository_arn | ECR repository ARN for Flows images (optional, for private ECR) | `string` | `null` | no |
-| reuse_vpc_id | Optionally provide an existing VPC ID to reuse | `string` | `null` | no |
-| reuse_vpc_subnet_ids | Provide existing subnet IDs to reuse, if reusing VPC | `list(string)` | `null` | no |
+| reuse_vpc_id | Existing VPC ID to deploy into. When set, the module creates no VPC, NAT gateway, or routing; see [Using an existing VPC](#using-an-existing-vpc) | `string` | `null` | no |
+| reuse_vpc_subnet_ids | Existing subnet IDs in `reuse_vpc_id` with outbound access: private subnets for `network_mode = "private"`, public subnets for `"public"`. Required when `reuse_vpc_id` is set | `list(string)` | `null` | no |
 | network_mode | How agents reach the internet: `"private"` (private subnets with a NAT gateway or your own proxy) or `"public"` (public IP per instance, public subnets of the module-created VPC, no NAT gateway) | `string` | `"private"` | no |
 | agent_image_tag | Docker image tag for the agent | `string` | `"latest"` | no |
 | agent_image_tag_ssm_param | SSM parameter for agent image tag. If provided, will use this instead of creating a new one | `object({ arn = string, name = string })` | `null` | no |
@@ -156,6 +191,6 @@ If the secret is encrypted with a customer-managed KMS key, also set
 - Launch template with the Spacelift AMI matching the instance architecture (amd64 or arm64)
 - IAM role and instance profile for agent permissions
 - Secrets Manager secret for agent credentials (optional, if not providing an existing secret)
-- Security group allowing outbound traffic
-- VPC with public/private subnets, plus a NAT gateway unless `network_mode = "public"` (optional, if not reusing existing VPC)
+- Security group allowing outbound traffic (created in the existing VPC when reusing one)
+- VPC with public/private subnets, Internet Gateway, and route tables, plus a single NAT gateway with Elastic IP unless `network_mode = "public"` (optional, skipped entirely when `reuse_vpc_id` is set)
 - SSM parameter for agent image tag (optional, if not providing existing parameter)
