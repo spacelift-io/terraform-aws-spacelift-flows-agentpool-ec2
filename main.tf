@@ -84,6 +84,8 @@ resource "aws_secretsmanager_secret_version" "agent_credentials" {
 
 # IAM instance profile
 resource "aws_iam_instance_profile" "agent_instance" {
+  depends_on = [aws_iam_role_policy_attachment.this]
+
   name = "${var.name}-agent-instance-profile"
   role = aws_iam_role.agent_instance.name
 }
