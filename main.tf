@@ -54,6 +54,19 @@ data "aws_ami" "worker" {
   }
 }
 
+# Launch template tag specifications. Instances always get the module's
+# default tags; caller tags override them on matching keys.
+locals {
+  custom_tags_by_resource_type = { for spec in var.tag_specifications : spec.resource_type => spec.tags }
+
+  launch_template_tags = merge(local.custom_tags_by_resource_type, {
+    instance = merge({
+      Name = "${var.name}-agent"
+      Type = "agent-pool"
+    }, lookup(local.custom_tags_by_resource_type, "instance", {}))
+  })
+}
+
 # Agent credentials secret
 locals {
   create_credentials_secret = var.create_credentials_secret
@@ -67,9 +80,9 @@ resource "aws_secretsmanager_secret" "agent_credentials" {
   name        = "${var.name}-agent-pool-credentials"
   description = "Credentials for Flows agent pool"
 
-  tags = {
+  tags = merge({
     Purpose = "Agent pool authentication"
-  }
+  }, var.additional_tags)
 }
 
 resource "aws_secretsmanager_secret_version" "agent_credentials" {
@@ -88,6 +101,7 @@ resource "aws_iam_instance_profile" "agent_instance" {
 
   name = "${var.name}-agent-instance-profile"
   role = aws_iam_role.agent_instance.name
+  tags = var.additional_tags
 }
 
 # Launch template for agent instances
@@ -140,13 +154,15 @@ resource "aws_launch_template" "agent_pool" {
     cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
   }))
 
-  tag_specifications {
-    resource_type = "instance"
-    tags = {
-      Name = "${var.name}-agent"
-      Type = "agent-pool"
+  dynamic "tag_specifications" {
+    for_each = local.launch_template_tags
+    content {
+      resource_type = tag_specifications.key
+      tags          = tag_specifications.value
     }
   }
+
+  tags = var.additional_tags
 
   lifecycle {
     precondition {
@@ -162,6 +178,7 @@ resource "aws_ssm_parameter" "agent_image_tag" {
   name  = "/${var.name}/agent-pool/ImageTag"
   type  = "String"
   value = var.agent_image_tag
+  tags  = var.additional_tags
 }
 
 # Auto Scaling Group
@@ -197,16 +214,18 @@ resource "aws_autoscaling_group" "agent_pool" {
     "GroupTotalInstances"
   ]
 
-  tag {
-    key                 = "Name"
-    value               = "${var.name}-agent"
-    propagate_at_launch = true
-  }
-
-  tag {
-    key                 = "AgentPoolID"
-    value               = "flows"
-    propagate_at_launch = true
+  # Name is not propagated: instances get it from the launch template, where
+  # tag_specifications can override it.
+  dynamic "tag" {
+    for_each = merge({
+      Name        = "${var.name}-agent"
+      AgentPoolID = "flows"
+    }, var.additional_tags)
+    content {
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = tag.key != "Name"
+    }
   }
 
   lifecycle {
