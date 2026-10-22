@@ -14,6 +14,8 @@ resource "aws_iam_role" "agent_instance" {
       }
     ]
   })
+
+  tags = var.additional_tags
 }
 
 # IAM policy for agent instances

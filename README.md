@@ -151,6 +151,42 @@ module "flows_agent_pool" {
 If the secret is encrypted with a customer-managed KMS key, also set
 `credentials_secret_kms_key_arn` so the instances can decrypt it.
 
+### Tags
+
+Use `additional_tags` to tag every resource the module creates, for ownership,
+cost allocation, or inventory. The Auto Scaling Group propagates them to the
+instances at launch.
+
+Use `tag_specifications` to tag the resources the launch template creates
+(`instance`, `volume`, `network-interface`, ...). Instances get `Name` and
+`Type` by default; instance tags with the same key override them. When a key
+is set in both `additional_tags` and an `instance` tag specification, the
+value from `additional_tags` wins on the instance, because AWS applies the Auto
+Scaling Group's tags last.
+
+```hcl
+module "flows_agent_pool" {
+  source = "github.com/spacelift-io/terraform-aws-spacelift-flows-agentpool-ec2?ref=main"
+
+  # ...
+
+  additional_tags = {
+    CostCenter  = "SRE"
+    Environment = "Prototype"
+    Owner       = "SRE"
+  }
+
+  tag_specifications = [
+    {
+      resource_type = "volume"
+      tags = {
+        CostCenter = "SRE"
+      }
+    },
+  ]
+}
+```
+
 ## Requirements
 
 - Terraform >= 1.2
@@ -175,6 +211,8 @@ If the secret is encrypted with a customer-managed KMS key, also set
 | reuse_vpc_id | Existing VPC ID to deploy into. When set, the module creates no VPC, NAT gateway, or routing; see [Using an existing VPC](#using-an-existing-vpc) | `string` | `null` | no |
 | reuse_vpc_subnet_ids | Existing subnet IDs in `reuse_vpc_id` with outbound access: private subnets for `network_mode = "private"`, public subnets for `"public"`. Required when `reuse_vpc_id` is set | `list(string)` | `null` | no |
 | network_mode | How agents reach the internet: `"private"` (private subnets with a NAT gateway or your own proxy) or `"public"` (public IP per instance, public subnets of the module-created VPC, no NAT gateway) | `string` | `"private"` | no |
+| additional_tags | Additional tags to apply to all resources the module creates. The Auto Scaling Group propagates them to instances at launch | `map(string)` | `{}` | no |
+| tag_specifications | Tag specifications to set on the launch template. Instance tags override the default `Name` and `Type` tags. Each `resource_type` may appear once | `list(object({ resource_type = string, tags = optional(map(string), {}) }))` | `[]` | no |
 | agent_image_tag | Docker image tag for the agent | `string` | `"latest"` | no |
 | agent_image_tag_ssm_param | SSM parameter for agent image tag. If provided, will use this instead of creating a new one | `object({ arn = string, name = string })` | `null` | no |
 
