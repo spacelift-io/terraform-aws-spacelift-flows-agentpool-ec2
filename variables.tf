@@ -110,6 +110,26 @@ variable "network_mode" {
   }
 }
 
+variable "additional_tags" {
+  description = "Additional tags to apply to all resources the module creates. The Auto Scaling Group propagates them to instances at launch."
+  type        = map(string)
+  default     = {}
+}
+
+variable "tag_specifications" {
+  description = "Tag specifications to set on the launch template, which apply to the resources it creates at launch, such as instance, volume, or network-interface. Instance tags override the module's default Name and Type tags."
+  type = list(object({
+    resource_type = string
+    tags          = optional(map(string), {})
+  }))
+  default = []
+
+  validation {
+    condition     = length(distinct(var.tag_specifications[*].resource_type)) == length(var.tag_specifications)
+    error_message = "Each resource_type may appear only once in tag_specifications."
+  }
+}
+
 variable "agent_image_tag" {
   type    = string
   default = "latest"

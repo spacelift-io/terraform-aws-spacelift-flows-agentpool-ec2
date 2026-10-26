@@ -22,9 +22,9 @@ module "vpc" {
   manage_default_route_table    = false
   manage_default_network_acl    = false
 
-  tags = {
+  tags = merge({
     Purpose = "Agent pool networking"
-  }
+  }, var.additional_tags)
 }
 
 # Data source for availability zones
@@ -44,4 +44,6 @@ resource "aws_security_group" "agent_pool" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = var.additional_tags
 }
